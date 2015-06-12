@@ -1,0 +1,105 @@
+Index: python/ccdb/cmd/console_context.py
+===================================================================
+--- python/ccdb/cmd/console_context.py  (revision 2268)
++++ python/ccdb/cmd/console_context.py  (working copy)
+@@ -7,6 +7,9 @@
+ import posixpath
+ import getpass
+ 
++import zipfile
++import zipimport
++
+ import ccdb.cmd
+ import ccdb.path_utils
+ from ccdb.brace_log_message import BraceMessage as lfm
+@@ -198,26 +201,61 @@
+                       self.theme.Reset))
+ 
+         #get list of files and module names
+-        files = os.listdir(path)
+-        test = re.compile(".py$", re.IGNORECASE)
+-        files = filter(test.search, files)
+-        filenameToModuleName = lambda f: os.path.splitext(f)[0]
+-        moduleNames = sorted(map(filenameToModuleName, files))
+-        log.debug(lfm(" |- found '{0}' modules.{1} |- proceed loading each module:{1}", len(moduleNames), os.linesep))
++        try:
++            files = os.listdir(path)
++            test = re.compile(".py$", re.IGNORECASE)
++            files = filter(test.search, files)
++            filenameToModuleName = lambda f: os.path.splitext(f)[0]
++            moduleNames = sorted(map(filenameToModuleName, files))
++            log.debug(lfm(" |- found '{0}' modules.{1} |- proceed loading each module:{1}", len(moduleNames), os.linesep))
+ 
+-        modules = []
+-        for m in moduleNames:
+-            # skip any files starting with '__', such as __init__.py
+-            if m.startswith('__'):
+-                continue
+-            try:
+-                f, filename, desc = imp.find_module(m, [path])
+-                modules.append(imp.load_module(m, f, filename, desc))
+-            except ImportError, ex:
+-                log.debug(lfm(" |- error importing module: {0}", m))
+-                log.debug(lfm(" |\\{0} ||-{1}", os.linesep, repr(ex)))
+-                continue
+ 
++            modules = []
++            for m in moduleNames:
++                # skip any files starting with '__', such as __init__.py
++                if m.startswith('__'):
++                    continue
++                try:
++                    f, filename, desc = imp.find_module(m, [path])
++                    modules.append(imp.load_module(m, f, filename, desc))
++                except ImportError, ex:
++                    log.debug(lfm(" |- error importing module: {0}", m))
++                    log.debug(lfm(" |\\{0} ||-{1}", os.linesep, repr(ex)))
++                    continue
++
++        except OSError:
++            # this may be a zipped environment
++            zname = os.path.split(ccdb.__path__[0])[0]
++            zfile = zipfile.ZipFile(zname, 'r')
++            znamelist = zfile.namelist()
++
++            mdir = os.path.join('ccdb','cmd','utils')
++            mfiles = [f
++                      for f
++                      in znamelist
++                      if f.startswith(os.path.join(mdir,''))]
++            moduleNames = [os.path.splitext(os.path.basename(f))[0]
++                      for f
++                      in mfiles
++                      if f.lower().endswith('.py')]
++
++            zimp = zipimport.zipimporter(os.path.join(zname,mdir))
++
++            modules = []
++            for m in moduleNames:
++                # skip any files starting with '__', such as __init__.py
++                if m.startswith('__'):
++                    continue
++                try:
++                    if zimp.find_module(m) is not None:
++                        modules.append(zimp.load_module(m))
++                    else:
++                        raise ImportError()
++                except ImportError, ex:
++                    log.debug(lfm(" |- error importing module: {0}", m))
++                    log.debug(lfm(" |\\{0} ||-{1}", os.linesep, repr(ex)))
++                    continue
++
+         return modules
+ 
+ 
+@@ -660,8 +698,8 @@
+     def print_interactive_intro(self):
+         print """
+ +--------------------------+
+-  CCDB shell v.1.02
+-  HallD JLab
++  CCDB shell v.1.05
++  CLAS12 JLab
+ +--------------------------+
+        """
+         print self.theme.Title + "Interactive mode"

@@ -1,0 +1,27 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+import os, glob
+
+def build(ctx):
+
+    if ctx.options.test or ctx.options.all:
+
+        progs = ctx.path.ant_glob('test*.cpp')
+
+        for prog in progs:
+            basename = os.path.basename(str(prog))
+            target = os.path.splitext(basename)[0]
+            ctx.program(
+                target = target,
+                source = [prog],
+                use = '''\
+                    C++11
+                    CLAS12_CCDB
+                    CCDB
+                    BOOST
+                        boost_filesystem
+                        boost_system
+                    MYSQL
+                '''.split(),
+                install_path = False)

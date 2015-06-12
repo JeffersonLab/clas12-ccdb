@@ -1,0 +1,25 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+def configure(ctx):
+    ctx.env.INCLUDES_CLAS12_CCDB = ['#src']
+    ctx.env.STLIB_CLAS12_CCDB = ['clas12_ccdb']
+    ctx.env.STLIBPATH_CLAS12_CCDB = ['src']
+
+def build(ctx):
+
+    ctx.stlib(
+        target = 'clas12_ccdb',
+        source = ctx.path.ant_glob('**/*.cpp'),
+        includes = ['.'],
+        use = '''\
+            C++11
+            BOOST
+            CCDB
+            MYSQL
+        ''',
+        install_path = ctx.options.libdir)
+
+    ctx.install_files(ctx.options.incdir,
+        ctx.path.ant_glob('**/*.h*'),
+        relative_trick = True)

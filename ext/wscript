@@ -1,0 +1,62 @@
+#! /usr/bin/env python
+# encoding: utf-8
+
+import os
+import tarfile
+
+from waflib import Utils
+
+ccdb_dir = 'ccdb_1.05'
+
+boost_minver = (1,54)
+boost_maxver = (2,0)
+boost_libs = '''\
+    filesystem
+    system
+'''.split()
+
+def configure(conf):
+
+    boost_sysver = conf.boost_version()
+    if boost_minver < boost_sysver < boost_maxver:
+        system_libpaths = conf.system_libpaths()
+        system_includes = conf.system_includes()
+        conf.boost_load_libs(boost_libs, system_includes, system_libpaths)
+    else:
+        conf.boost_included_libs(boost_libs)
+
+    conf.env.INCLUDES_CCDB += ['#ext/'+ccdb_dir+'/include']
+    conf.env.STLIBPATH_CCDB += ['ext']
+    conf.env.LIB_CCDB += ['rt']
+    conf.env.STLIB_CCDB += ['ccdb','sqlite3']
+
+def build(bld):
+
+    boost_sysver = bld.boost_version()
+    if not (boost_minver < boost_sysver < boost_maxver):
+        bld.boost_build(bld.options.incdir,bld.options.libdir)
+
+    sqlite3_lib = bld.stlib(
+        target = 'sqlite3',
+        source = ccdb_dir+'/src/SQLite/sqlite3.c',
+        includes = ccdb_dir+'/include/SQLite',
+        use = 'PIC',
+        install_path = bld.options.libdir)
+
+    ccdb_lib = bld.stlib(
+        target = 'ccdb',
+        source = bld.path.ant_glob(ccdb_dir+'/**/*.cc'),
+        includes = [ccdb_dir+'/include', ccdb_dir+'/include/SQLite'],
+        use = 'PIC MYSQL',
+        defines = ['CCDB_MYSQL'],
+        install_path = bld.options.libdir)
+
+    bld.install_as(os.path.join(bld.options.bindir,'clas12-ccdb'),
+        os.path.join(ccdb_dir,'bin','ccdb'),
+        chmod=Utils.O755)
+
+    start_dir = bld.path.find_dir(os.path.join(ccdb_dir,'include'))
+    bld.install_files(bld.options.incdir, start_dir.ant_glob('**/*.h*'),
+        cwd=start_dir, relative_trick=True)
+
+    bld.add_group()
